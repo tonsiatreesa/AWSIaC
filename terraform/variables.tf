@@ -16,7 +16,7 @@ variable "environment" {
 variable "owner" {
   description = "Project owner/student name"
   type        = string
-  default     = "student"
+  default     = "Nidhun"
 }
 
 # S3 Bucket Configuration

@@ -134,39 +134,45 @@ jobs:
       run: |
         cd terraform
         cat > terraform.tfvars << EOF
-        aws_region = "${{ env.AWS_REGION }}"
-        environment = "dev"
-        owner = "github-actions"
-        
+        # AWS Configuration
+        aws_region  = "${{ env.AWS_REGION }}"
+        environment = "prod"
+        owner       = "NidhunMurali"
+
+        # S3 Configuration
         s3_bucket_names = [
-          "prog8870-tf-bucket-1-${{ github.run_number }}",
-          "prog8870-tf-bucket-2-${{ github.run_number }}",
-          "prog8870-tf-bucket-3-${{ github.run_number }}",
-          "prog8870-tf-bucket-4-${{ github.run_number }}"
+          "nm1811conestoga-terraform-bucket-1",
+          "nm1811conestoga-terraform-bucket-2",
+          "nm1811conestoga-terraform-bucket-3",
+          "nm1811conestoga-terraform-bucket-4"
         ]
-        
         enable_s3_versioning = true
-        vpc_cidr = "10.0.0.0/16"
-        public_subnet_cidrs = ["10.0.1.0/24", "10.0.2.0/24"]
+
+        # VPC Configuration
+        vpc_cidr             = "10.0.0.0/16"
+        public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
         private_subnet_cidrs = ["10.0.10.0/24", "10.0.20.0/24"]
-        availability_zones = ["us-east-1a", "us-east-1b"]
-        
-        instance_type = "t2.micro"
-        ami_id = "ami-0c02fb55956c7d316"
-        key_pair_name = ""
+        availability_zones   = ["us-east-1a", "us-east-1b"]
+
+        # EC2 Configuration
+        instance_type     = "t2.micro"
+        ami_id           = "ami-0c02fb55956c7d316"
+        key_pair_name    = "nmkey"
         enable_public_ip = true
-        
-        db_instance_class = "db.t3.micro"
-        db_engine = "mysql"
-        db_engine_version = "8.0"
-        db_name = "prog8870db"
-        db_username = "admin"
-        db_password = "${{ secrets.DB_PASSWORD }}"
-        db_allocated_storage = 20
+
+        # RDS Configuration
+        db_instance_class       = "db.t3.micro"
+        db_engine              = "mysql"
+        db_engine_version      = "8.0"
+        db_name                = "mydb"
+        db_username            = "admin"
+        db_password            = "${{ secrets.DB_PASSWORD }}"
+        db_allocated_storage   = 20
         db_publicly_accessible = true
-        
+
+        # Security Configuration
         allowed_ssh_cidrs = ["0.0.0.0/0"]
-        allowed_db_cidrs = ["0.0.0.0/0"]
+        allowed_db_cidrs  = ["10.0.0.0/16"]
         EOF
 
     - name: Terraform Init
@@ -226,13 +232,13 @@ jobs:
         cat > terraform.tfvars << EOF
         aws_region = "${{ env.AWS_REGION }}"
         environment = "prod"
-        owner = "github-actions"
+        owner = "NidhunMurali"
         
         s3_bucket_names = [
-          "prog8870-tf-bucket-1-${{ github.run_number }}",
-          "prog8870-tf-bucket-2-${{ github.run_number }}",
-          "prog8870-tf-bucket-3-${{ github.run_number }}",
-          "prog8870-tf-bucket-4-${{ github.run_number }}"
+          "nm1811conestoga-terraform-bucket-1",
+          "nm1811conestoga-terraform-bucket-2",
+          "nm1811conestoga-terraform-bucket-3",
+          "nm1811conestoga-terraform-bucket-4"
         ]
         
         enable_s3_versioning = true
@@ -243,20 +249,20 @@ jobs:
         
         instance_type = "t2.micro"
         ami_id = "ami-0c02fb55956c7d316"
-        key_pair_name = ""
+        key_pair_name = "nmkey"
         enable_public_ip = true
         
         db_instance_class = "db.t3.micro"
         db_engine = "mysql"
         db_engine_version = "8.0"
-        db_name = "prog8870db"
+        db_name = "mydb"
         db_username = "admin"
         db_password = "${{ secrets.DB_PASSWORD }}"
         db_allocated_storage = 20
         db_publicly_accessible = true
         
         allowed_ssh_cidrs = ["0.0.0.0/0"]
-        allowed_db_cidrs = ["0.0.0.0/0"]
+        allowed_db_cidrs = ["10.0.0.0/16"]
         EOF
 
     - name: Terraform Init
@@ -335,13 +341,13 @@ jobs:
         cat > terraform.tfvars << EOF
         aws_region = "${{ env.AWS_REGION }}"
         environment = "prod"
-        owner = "github-actions"
+        owner = "NidhunMurali"
         
         s3_bucket_names = [
-          "prog8870-tf-bucket-1-${{ github.run_number }}",
-          "prog8870-tf-bucket-2-${{ github.run_number }}",
-          "prog8870-tf-bucket-3-${{ github.run_number }}",
-          "prog8870-tf-bucket-4-${{ github.run_number }}"
+          "nm1811conestoga-terraform-bucket-1",
+          "nm1811conestoga-terraform-bucket-2",
+          "nm1811conestoga-terraform-bucket-3",
+          "nm1811conestoga-terraform-bucket-4"
         ]
         
         enable_s3_versioning = true
@@ -352,20 +358,20 @@ jobs:
         
         instance_type = "t2.micro"
         ami_id = "ami-0c02fb55956c7d316"
-        key_pair_name = ""
+        key_pair_name = "nmkey"
         enable_public_ip = true
         
         db_instance_class = "db.t3.micro"
         db_engine = "mysql"
         db_engine_version = "8.0"
-        db_name = "prog8870db"
+        db_name = "mydb"
         db_username = "admin"
         db_password = "${{ secrets.DB_PASSWORD }}"
         db_allocated_storage = 20
         db_publicly_accessible = true
         
         allowed_ssh_cidrs = ["0.0.0.0/0"]
-        allowed_db_cidrs = ["0.0.0.0/0"]
+        allowed_db_cidrs = ["10.0.0.0/16"]
         EOF
 
     - name: Terraform Init

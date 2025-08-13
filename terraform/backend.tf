@@ -10,7 +10,6 @@ terraform {
   }
   
   # Local backend for this project
-  # In production, consider using S3 backend with DynamoDB locking
   backend "local" {
     path = "terraform.tfstate"
   }
@@ -25,7 +24,6 @@ provider "aws" {
       Environment = var.environment
       Project     = "PROG8870-Final"
       Owner       = var.owner
-      ManagedBy   = "Terraform"
     }
   }
 }

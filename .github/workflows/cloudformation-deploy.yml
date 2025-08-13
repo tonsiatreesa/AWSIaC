@@ -1,0 +1,361 @@
+name: 'CloudFormation Deploy'
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'cloudformation/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'cloudformation/**'
+  workflow_dispatch:
+    inputs:
+      action:
+        descripti    - name: Setup AWS Credentials (AWS Educate)
+      run: |
+        mkdir -p ~/.aws
+        cat > ~/.aws/credentials << EOF
+        [default]
+        aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws_session_token = ${{ secrets.AWS_SESSION_TOKEN }}
+        EOF
+        
+        cat > ~/.aws/config << EOF
+        [default]
+        region = ${{ env.AWS_REGION }}
+        output = json
+        EOF
+        
+        # Verify AWS connection
+        aws sts get-caller-identity
+
+    - name: Validate CloudFormation templatesion to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - delete
+
+env:
+  AWS_REGION: 'us-east-1'
+  STACK_PREFIX: 'prog8870-cf'
+
+jobs:
+  cloudformation-validate:
+    name: 'CloudFormation Validate'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Install cfn-lint
+      run: |
+        pip install cfn-lint
+
+    - name: Validate CloudFormation templates
+      run: |
+        echo "Validating CloudFormation templates..."
+        for template in cloudformation/*.yaml; do
+          echo "Validating $template"
+          cfn-lint "$template"
+          aws cloudformation validate-template --template-body file://"$template"
+        done
+
+    - name: Run cfn-lint and save results
+      run: |
+        cfn-lint cloudformation/*.yaml --format json > cfn-lint-results.json || true
+        cat cfn-lint-results.json
+
+    - name: Upload cfn-lint results
+      uses: actions/upload-artifact@v3
+      with:
+        name: cfn-lint-results
+        path: cfn-lint-results.json
+
+  cloudformation-security-scan:
+    name: 'Security Scan'
+    runs-on: ubuntu-latest
+    needs: cloudformation-validate
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Run Trivy vulnerability scanner on CloudFormation
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'config'
+        scan-ref: './cloudformation'
+        format: 'sarif'
+        output: 'trivy-cf-results.sarif'
+
+    - name: Upload Trivy scan results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      if: always()
+      with:
+        sarif_file: 'trivy-cf-results.sarif'
+
+  cloudformation-deploy:
+    name: 'CloudFormation Deploy'
+    runs-on: ubuntu-latest
+    needs: [cloudformation-validate, cloudformation-security-scan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'deploy')
+    environment: production
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup AWS Credentials (AWS Educate)
+      run: |
+        mkdir -p ~/.aws
+        cat > ~/.aws/credentials << EOF
+        [default]
+        aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws_session_token = ${{ secrets.AWS_SESSION_TOKEN }}
+        EOF
+        
+        cat > ~/.aws/config << EOF
+        [default]
+        region = ${{ env.AWS_REGION }}
+        output = json
+        EOF
+        
+        # Verify AWS connection
+        aws sts get-caller-identity
+
+    - name: Deploy S3 Buckets Stack
+      run: |
+        STACK_NAME="${{ env.STACK_PREFIX }}-s3-buckets-${{ github.run_number }}"
+        echo "Deploying S3 buckets stack: $STACK_NAME"
+        
+        aws cloudformation deploy \
+          --template-file cloudformation/s3-buckets.yaml \
+          --stack-name "$STACK_NAME" \
+          --parameter-overrides \
+            Environment=prod \
+            Owner=github-actions \
+            BucketPrefix=prog8870-cf-bucket-${{ github.run_number }} \
+          --tags \
+            Project=PROG8870 \
+            Environment=prod \
+            ManagedBy=CloudFormation \
+            GitHubRunNumber=${{ github.run_number }} \
+          --no-fail-on-empty-changeset
+        
+        echo "S3_STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+
+    - name: Deploy EC2 Infrastructure Stack
+      run: |
+        STACK_NAME="${{ env.STACK_PREFIX }}-ec2-infrastructure-${{ github.run_number }}"
+        echo "Deploying EC2 infrastructure stack: $STACK_NAME"
+        
+        aws cloudformation deploy \
+          --template-file cloudformation/ec2-infrastructure.yaml \
+          --stack-name "$STACK_NAME" \
+          --parameter-overrides \
+            Environment=prod \
+            Owner=github-actions \
+            InstanceType=t2.micro \
+            KeyPairName="" \
+            VpcCidr=10.1.0.0/16 \
+            PublicSubnet1Cidr=10.1.1.0/24 \
+            PublicSubnet2Cidr=10.1.2.0/24 \
+            SSHLocation=0.0.0.0/0 \
+          --tags \
+            Project=PROG8870 \
+            Environment=prod \
+            ManagedBy=CloudFormation \
+            GitHubRunNumber=${{ github.run_number }} \
+          --no-fail-on-empty-changeset
+        
+        echo "EC2_STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+
+    - name: Deploy RDS Database Stack
+      run: |
+        STACK_NAME="${{ env.STACK_PREFIX }}-rds-database-${{ github.run_number }}"
+        echo "Deploying RDS database stack: $STACK_NAME"
+        
+        aws cloudformation deploy \
+          --template-file cloudformation/rds-database.yaml \
+          --stack-name "$STACK_NAME" \
+          --parameter-overrides \
+            Environment=prod \
+            Owner=github-actions \
+            DBInstanceClass=db.t3.micro \
+            DBName=prog8870db \
+            DBUsername=admin \
+            DBPassword="${{ secrets.DB_PASSWORD }}" \
+            DBAllocatedStorage=20 \
+            DBPubliclyAccessible=true \
+            AllowedCIDR=0.0.0.0/0 \
+            VPCStackName="" \
+          --tags \
+            Project=PROG8870 \
+            Environment=prod \
+            ManagedBy=CloudFormation \
+            GitHubRunNumber=${{ github.run_number }} \
+          --no-fail-on-empty-changeset
+        
+        echo "RDS_STACK_NAME=$STACK_NAME" >> $GITHUB_ENV
+
+    - name: Get Stack Outputs
+      run: |
+        echo "## 🚀 CloudFormation Stacks Deployed Successfully!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # S3 Stack Outputs
+        echo "### 📦 S3 Buckets Stack Outputs:" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        aws cloudformation describe-stacks \
+          --stack-name "$S3_STACK_NAME" \
+          --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+          --output table >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # EC2 Stack Outputs
+        echo "### 🖥️ EC2 Infrastructure Stack Outputs:" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        aws cloudformation describe-stacks \
+          --stack-name "$EC2_STACK_NAME" \
+          --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+          --output table >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # RDS Stack Outputs
+        echo "### 🗄️ RDS Database Stack Outputs:" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        aws cloudformation describe-stacks \
+          --stack-name "$RDS_STACK_NAME" \
+          --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+          --output table >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        
+        # Get EC2 URLs
+        EC2_URL1=$(aws cloudformation describe-stacks --stack-name "$EC2_STACK_NAME" --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL1`].OutputValue' --output text)
+        EC2_URL2=$(aws cloudformation describe-stacks --stack-name "$EC2_STACK_NAME" --query 'Stacks[0].Outputs[?OutputKey==`WebsiteURL2`].OutputValue' --output text)
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🌐 Website URLs:" >> $GITHUB_STEP_SUMMARY
+        echo "- **EC2 Instance 1**: [$EC2_URL1]($EC2_URL1)" >> $GITHUB_STEP_SUMMARY
+        echo "- **EC2 Instance 2**: [$EC2_URL2]($EC2_URL2)" >> $GITHUB_STEP_SUMMARY
+
+    - name: Save Stack Information
+      run: |
+        cat > cloudformation-stacks.json << EOF
+        {
+          "s3_stack": "$S3_STACK_NAME",
+          "ec2_stack": "$EC2_STACK_NAME",
+          "rds_stack": "$RDS_STACK_NAME",
+          "region": "${{ env.AWS_REGION }}",
+          "run_number": "${{ github.run_number }}"
+        }
+        EOF
+
+    - name: Upload Stack Information
+      uses: actions/upload-artifact@v3
+      with:
+        name: cloudformation-stacks
+        path: cloudformation-stacks.json
+
+  cloudformation-delete:
+    name: 'CloudFormation Delete'
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'delete'
+    environment: production
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup AWS Credentials (AWS Educate)
+      run: |
+        mkdir -p ~/.aws
+        cat > ~/.aws/credentials << EOF
+        [default]
+        aws_access_key_id = ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws_secret_access_key = ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws_session_token = ${{ secrets.AWS_SESSION_TOKEN }}
+        EOF
+        
+        cat > ~/.aws/config << EOF
+        [default]
+        region = ${{ env.AWS_REGION }}
+        output = json
+        EOF
+        
+        # Verify AWS connection
+        aws sts get-caller-identity
+
+    - name: List and Delete CloudFormation Stacks
+      run: |
+        echo "Listing all PROG8870 CloudFormation stacks..."
+        STACKS=$(aws cloudformation list-stacks \
+          --stack-status-filter CREATE_COMPLETE UPDATE_COMPLETE \
+          --query 'StackSummaries[?starts_with(StackName, `prog8870-cf`)].StackName' \
+          --output text)
+        
+        if [ -z "$STACKS" ]; then
+          echo "No PROG8870 stacks found to delete"
+          exit 0
+        fi
+        
+        echo "Found stacks: $STACKS"
+        
+        # Delete stacks in reverse order (RDS first, then EC2, then S3)
+        for stack in $STACKS; do
+          if [[ $stack == *"rds-database"* ]]; then
+            echo "Deleting RDS stack: $stack"
+            aws cloudformation delete-stack --stack-name "$stack"
+          fi
+        done
+        
+        # Wait for RDS deletion before proceeding
+        echo "Waiting for RDS stacks to be deleted..."
+        for stack in $STACKS; do
+          if [[ $stack == *"rds-database"* ]]; then
+            aws cloudformation wait stack-delete-complete --stack-name "$stack"
+          fi
+        done
+        
+        # Delete EC2 stacks
+        for stack in $STACKS; do
+          if [[ $stack == *"ec2-infrastructure"* ]]; then
+            echo "Deleting EC2 stack: $stack"
+            aws cloudformation delete-stack --stack-name "$stack"
+          fi
+        done
+        
+        # Wait for EC2 deletion
+        echo "Waiting for EC2 stacks to be deleted..."
+        for stack in $STACKS; do
+          if [[ $stack == *"ec2-infrastructure"* ]]; then
+            aws cloudformation wait stack-delete-complete --stack-name "$stack"
+          fi
+        done
+        
+        # Delete S3 stacks last
+        for stack in $STACKS; do
+          if [[ $stack == *"s3-buckets"* ]]; then
+            echo "Deleting S3 stack: $stack"
+            aws cloudformation delete-stack --stack-name "$stack"
+          fi
+        done
+        
+        echo "All PROG8870 CloudFormation stacks deletion initiated"

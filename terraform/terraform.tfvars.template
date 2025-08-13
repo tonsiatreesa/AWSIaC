@@ -1,0 +1,50 @@
+# Terraform Variables Configuration
+# Copy this file to terraform.tfvars and customize the values
+# DO NOT commit terraform.tfvars to version control if it contains sensitive data
+
+# AWS Configuration
+aws_region  = "us-east-1"
+environment = "dev"
+owner       = "your-name-here"  # Replace with your actual name
+
+# S3 Configuration - Make these unique by adding your initials or timestamp
+s3_bucket_names = [
+  "prog8870-tf-bucket-1-xyz123",  # Replace xyz123 with your initials + numbers
+  "prog8870-tf-bucket-2-xyz123",
+  "prog8870-tf-bucket-3-xyz123", 
+  "prog8870-tf-bucket-4-xyz123"
+]
+enable_s3_versioning = true
+
+# VPC Configuration
+vpc_cidr             = "10.0.0.0/16"
+public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs = ["10.0.10.0/24", "10.0.20.0/24"]
+availability_zones   = ["us-east-1a", "us-east-1b"]
+
+# EC2 Configuration
+instance_type     = "t2.micro"
+ami_id           = "ami-0c02fb55956c7d316"  # Amazon Linux 2 in us-east-1
+key_pair_name    = ""                       # Leave empty if no SSH access needed
+enable_public_ip = true
+
+# RDS Configuration
+db_instance_class      = "db.t3.micro"
+db_engine             = "mysql"
+db_engine_version     = "8.0"
+db_name               = "prog8870db"
+db_username           = "admin"
+db_password           = "YourSecurePassword123!"  # Use a strong password (8+ chars)
+db_allocated_storage  = 20
+db_publicly_accessible = true  # For this educational project only
+
+# Security Configuration (For educational purposes - restrict in production)
+allowed_ssh_cidrs = ["0.0.0.0/0"]  # Replace with your IP for better security
+allowed_db_cidrs  = ["0.0.0.0/0"]  # Replace with specific CIDRs in production
+
+# IMPORTANT NOTES:
+# 1. Change bucket names to be unique (add your initials/timestamp)
+# 2. Use a strong database password
+# 3. Replace "your-name-here" with your actual name
+# 4. For production, restrict CIDR blocks to specific IP ranges
+# 5. Consider using a key pair for EC2 SSH access if needed

@@ -3,7 +3,7 @@
 # Create S3 buckets
 resource "aws_s3_bucket" "terraform_buckets" {
   count  = length(var.bucket_names)
-  bucket = "${var.bucket_names[count.index]}-nm1811Iac"
+  bucket = "${var.bucket_names[count.index]}-nm1811iac"
 
   tags = {
     Name        = var.bucket_names[count.index]

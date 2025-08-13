@@ -62,7 +62,7 @@ jobs:
         cat tfsec-results.json
 
     - name: Upload tfsec results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tfsec-results
         path: terraform/tfsec-results.json
@@ -186,7 +186,7 @@ jobs:
         terraform plan -detailed-exitcode -out=tfplan
 
     - name: Upload Terraform Plan
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-plan
         path: terraform/tfplan
@@ -286,7 +286,7 @@ jobs:
         terraform output -json > terraform-outputs.json
 
     - name: Upload Terraform Outputs
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-outputs
         path: terraform/terraform-outputs.json

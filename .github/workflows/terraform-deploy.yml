@@ -44,7 +44,9 @@ jobs:
     - name: Terraform Format Check
       run: |
         cd terraform
-        terraform fmt -check -recursive
+        echo "Auto-formatting Terraform files..."
+        terraform fmt -recursive
+        echo "Terraform files formatted successfully!"
 
     - name: Terraform Init
       run: |

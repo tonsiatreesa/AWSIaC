@@ -251,7 +251,7 @@ jobs:
     - name: Terraform Apply
       run: |
         cd terraform
-        terraform apply -var-file="terraform.tfvars" tfplan
+        terraform apply tfplan
 
     - name: Save Terraform Outputs
       run: |
